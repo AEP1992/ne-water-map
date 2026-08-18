@@ -158,6 +158,13 @@ header .hbtn:active{transform:translate(2px,2px);box-shadow:none}
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .item .v{flex:none;font-weight:900;font-size:17px;font-variant-numeric:tabular-nums}
 
+/* While a search is active, everything between the box and the results gets out
+   of the way. Otherwise results render below the fold and the search looks broken. */
+#panel.searching .hide-on-search{display:none}
+.searchhint{padding:10px 16px;border-bottom:2px solid var(--ink);font-size:11px;font-weight:700;
+  letter-spacing:.12em;text-transform:uppercase;background:var(--yellow);display:none}
+#panel.searching .searchhint{display:block}
+
 /* vintage strip */
 .vint{background:var(--ink);color:var(--paper);padding:9px 16px;font-size:10px;font-weight:500;letter-spacing:.02em;line-height:1.4}
 .vint b{font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:9.5px;display:block;opacity:.65;margin-bottom:2px}
@@ -276,14 +283,15 @@ header .hbtn:active{transform:translate(2px,2px);box-shadow:none}
   </div>
 
   <div class="pbody">
-    <div class="stats" id="stats"></div>
+    <div class="searchhint" id="searchHint"></div>
+    <div class="stats hide-on-search" id="stats"></div>
 
-    <div class="vint">
+    <div class="vint hide-on-search">
       <b>Data vintage</b>
       EPA SDWIS via the ECHO SDWA quarterly download, Q2 2026 refresh. Violations are reported roughly one quarter after they occur, so the most recent events here are about six months old.
     </div>
 
-    <div class="sect">
+    <div class="sect hide-on-search">
       <div class="lbl" style="margin-bottom:11px;opacity:.6">What the shapes mean</div>
       <div class="leg">
         <div class="row"><span class="gl rep"></span><span><b>Repeated violations</b>5 or more health-based violations, or a measurement 5× over a legal limit.</span></div>
@@ -293,7 +301,7 @@ header .hbtn:active{transform:translate(2px,2px);box-shadow:none}
       </div>
     </div>
 
-    <div class="sect">
+    <div class="sect hide-on-search">
       <div class="lbl" style="margin-bottom:11px;opacity:.6">Show</div>
       <div class="filt" id="filters">
         <label class="chk on"><input type="checkbox" id="fRep" checked> Repeated</label>
@@ -305,7 +313,7 @@ header .hbtn:active{transform:translate(2px,2px);box-shadow:none}
     </div>
 
     <div class="sect">
-      <div class="modes" role="tablist" aria-label="Ranking mode">
+      <div class="modes hide-on-search" role="tablist" aria-label="Ranking mode">
         <button id="modeMeasured" role="tab" aria-selected="true">Measured over a limit</button>
         <button id="modeViolations" role="tab" aria-selected="false">Most violations</button>
       </div>
@@ -552,7 +560,20 @@ function renderList() {
   let rows;
 
   if (q) {
-    rows = towns.filter(t => t.city.includes(q) || t.state === q).slice(0, 60);
+    // Forgiving match: ignore spaces, hyphens and apostrophes so "st albans",
+    // "st.albans" and "stalbans" all find ST ALBANS. Prefix matches rank first.
+    const norm = s => s.replace(/[^A-Z0-9]/g, '');
+    const nq = norm(q);
+    rows = towns
+      .filter(t => norm(t.city).includes(nq) || t.state === q)
+      .sort((a, b) => {
+        const ap = norm(a.city).startsWith(nq) ? 0 : 1;
+        const bp = norm(b.city).startsWith(nq) ? 0 : 1;
+        if (ap !== bp) return ap - bp;
+        return a.city.localeCompare(b.city);
+      })
+      .slice(0, 60);
+    lastMatches = rows;
   } else if (mode === 'measured') {
     rows = towns.filter(t => t.worst_ratio).sort((a,b) => b.worst_ratio - a.worst_ratio).slice(0, 40);
   } else {
@@ -560,9 +581,12 @@ function renderList() {
   }
 
   if (!rows.length) {
-    $('list').innerHTML = `<p style="font-size:13px;line-height:1.5;margin:0">
-      No town matches “${esc($('search').value)}”. Try a different spelling, or a two-letter state code
-      (MA, ME, NH, VT, CT, RI).</p>`;
+    lastMatches = [];
+    $('list').innerHTML = `<p style="font-size:13px;line-height:1.55;margin:0">
+      No town matches “${esc($('search').value)}”.<br><br>
+      Try a shorter spelling, or a two-letter state code (MA, ME, NH, VT, CT, RI).
+      Some very small systems could not be matched to a map location and are not shown —
+      see <strong>Method</strong> for which ones.</p>`;
     return;
   }
 
@@ -724,6 +748,11 @@ async function share() {
 /* ---------- deep link + geolocation ---------- */
 function openFromUrl() {
   const p = new URLSearchParams(location.search);
+  const q = p.get('q');
+  if (q) {                       // ?q=newbury — a shareable search
+    $('search').value = q;
+    applySearch();
+  }
   const c = p.get('town'), s = p.get('state');
   if (!c) return;
   const t = towns.find(x => x.city === c.toUpperCase() && (!s || x.state === s.toUpperCase()));
@@ -766,9 +795,40 @@ function nearest(lat, lon) {
 })();
 
 /* ---------- wiring ---------- */
-$('search').addEventListener('input', () => {
+let lastMatches = [];
+
+function applySearch() {
+  const q = ($('search').value || '').trim();
+  const panel = $('panel');
+  panel.classList.toggle('searching', q.length > 0);
   renderList();
-  if ($('search').value) $('panel').classList.add('open');
+  if (q) {
+    const n = lastMatches.length;
+    $('searchHint').textContent =
+      n === 0 ? `No town matches “${q}”` : `${n} match${n === 1 ? '' : 'es'} for “${q}”`;
+    panel.classList.add('open');          // mobile: the sheet has to be up to be read
+    $('grab').setAttribute('aria-expanded', 'true');
+    panel.querySelector('.pbody').scrollTop = 0;
+  }
+}
+
+$('search').addEventListener('input', applySearch);
+
+// Enter jumps to the top match rather than doing nothing.
+$('search').addEventListener('keydown', e => {
+  if (e.key !== 'Enter') return;
+  e.preventDefault();
+  if (lastMatches.length) {
+    select(lastMatches[0]);
+    $('search').blur();
+  }
+});
+
+// Escape clears the search and restores the panel.
+$('search').addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  $('search').value = '';
+  applySearch();
 });
 
 $('geoBtn').addEventListener('click', () => {
