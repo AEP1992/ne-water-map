@@ -367,8 +367,27 @@ header .hbtn:active{transform:translate(2px,2px);box-shadow:none}
         <li><strong>Lead &amp; copper</strong>: from the separate <code>SDWA_LCR_SAMPLES</code> table, which stores 90th-percentile sample results independent of whether a violation was filed. Values in µg/L (ppb) are shown in ppb; the federal action level is 15 ppb for lead and 1.3 mg/L for copper. Exceeding the action level triggers required corrosion-control treatment; it is not by itself a violation but is a strong indicator of pipe or plumbing risk.</li>
       </ul>
       <div class="callout">
-        <strong>A note on the lead action level.</strong> The 15 ppb figure used throughout this map is the action level in force for the sample results shown. Under EPA's Lead and Copper Rule Improvements the action level drops to 10 ppb, with a compliance date of 1 November 2027. Systems shown here as below the action level may not be below the one that will apply.
+        <strong>A note on the lead action level.</strong> The 15 ppb figure used throughout this map is the action level in force for the sample results shown. Under EPA's Lead and Copper Rule Improvements the action level drops to 10 ppb, with a compliance date of 1 November 2027. Systems shown here as below the action level may not be below the one that will apply. <strong>82 towns on this map fall between 10 and 15 ppb — they pass the current level and would not pass the one that replaces it. 40 of those have no violations on file at all.</strong>
       </div>
+
+      <h3>Dates are monitoring periods, not sample days</h3>
+      <p>This matters for reading any date on this map. The dates attached to these records are the boundaries of the compliance monitoring period a result is filed against — not the day someone actually drew water from a tap.</p>
+      <ul>
+        <li><strong>Lead and copper results</strong> carry the <em>end</em> of the monitoring period: 90.6% fall on 31 December, and the remainder on 30 June, 30 September or 31 January. The sample was collected at some point inside that window.</li>
+        <li><strong>Measured exceedances</strong> carry the <em>start</em> of the period: every one falls on 1 January, 1 April, 1 July or 1 October — quarter boundaries.</li>
+      </ul>
+      <p>So a result labelled "period ending 12/31/2022" was sampled somewhere in the run-up to that date, and the map does not know exactly when. Anywhere a date appears, read it as "the compliance period this result belongs to."</p>
+
+      <h3>There is no testing calendar here</h3>
+      <p>This map cannot tell you when a town's water was last tested, when it is next due, or what a full round of testing found. It holds violations, plus the single worst lead or copper result and up to four measured exceedances per town. Routine results that came back within their limits are not in the federal violation record at all — they are published by each utility in its annual Consumer Confidence Report, as a PDF, in a layout of its own choosing.</p>
+      <p>What that means in practice, across the 1,151 towns here:</p>
+      <table><tbody>
+        <tr><td>Towns with any date at all</td><td>974 of 1,151 (85%). The remaining 177 have no dated record of any kind.</td></tr>
+        <tr><td>Towns with a lead or copper result</td><td>735 (64%)</td></tr>
+        <tr><td>Towns with a measured exceedance</td><td>79 (7%)</td></tr>
+        <tr><td>Age of the newest lead result</td><td>Median 3.6 years. 75% are more than 2 years old; 22% more than 5 years.</td></tr>
+      </tbody></table>
+      <p>None of that is a failing of the water systems. Systems in compliance are required to sample lead infrequently — every three years is common, and reduced monitoring can stretch it further — so long gaps are the expected pattern rather than evidence of neglect. It does mean that for most towns on this map, the most recent published number is several years old, and nothing here describes what is coming out of a tap today.</p>
 
       <h3>What is excluded</h3>
       <ul>
@@ -503,6 +522,17 @@ function renderMarkers() {
 
 const key = t => t.city + '|' + t.state;
 
+/* Whole years between a MM/DD/YYYY marker and today. Null if unparseable or in the future. */
+function ageYears(s) {
+  if (!s) return null;
+  const p = String(s).split('/');
+  if (p.length !== 3) return null;
+  const d = new Date(+p[2], +p[0] - 1, +p[1]);
+  if (isNaN(d)) return null;
+  const y = Math.floor((Date.now() - d.getTime()) / 31557600000);
+  return y >= 0 ? y : null;
+}
+
 function renderStats() {
   const total = towns.length;
   const rep = towns.filter(t => t.risk_tier === 'high').length;
@@ -601,17 +631,20 @@ function renderDetail(t) {
     for (const e of ex) {
       h += `<div class="meas over">
         <div class="top"><b>${esc(e.contaminant)}</b><span>${e.ratio}× limit</span></div>
-        <div class="sub">Measured <strong>${e.measured}${e.unit ? ' ' + esc(e.unit) : ''}</strong> against a federal limit of ${e.mcl}. Sampled ${esc(e.date)} at ${esc(title(e.pws_name))}.</div>
+        <div class="sub">Measured <strong>${e.measured}${e.unit ? ' ' + esc(e.unit) : ''}</strong> against a federal limit of ${e.mcl}, at ${esc(title(e.pws_name))}. Reported for the monitoring period beginning ${esc(e.date)} — the sample itself was drawn at some point within that period.</div>
       </div>`;
     }
     if (lead) {
       // 10–15 ppb passes today's action level but not the one that replaces it in Nov 2027
       const nearMiss = !lead.exceeds && lead.ppb >= 10;
       const cls = lead.exceeds ? 'over' : (nearMiss ? 'watch' : 'under');
+      const yrs = ageYears(lead.date);
+      const stale = yrs !== null && yrs >= 2;
       h += `<div class="meas ${cls}">
         <div class="top"><b>Lead</b><span>${lead.ppb} ppb</span></div>
-        <div class="sub">90th-percentile tap result for ${esc(title(lead.pws_name))}, sampled ${esc(lead.date)}. The federal action level is 15 ppb${lead.exceeds ? ' — this is above it' : ' — this is below it'}. Lead is almost never in the source water; it is picked up from service lines, solder and household plumbing on the way to the tap.
-        ${nearMiss ? `<span class="note"><strong>Worth noting:</strong> under EPA's Lead and Copper Rule Improvements the action level drops to 10 ppb, with a compliance date of 1 November 2027. This result passes the level in force when it was sampled, and would not pass the one that replaces it.</span>` : ''}</div>
+        <div class="sub">90th-percentile tap result for ${esc(title(lead.pws_name))}, reported for the monitoring period ending ${esc(lead.date)}. The federal action level is 15 ppb${lead.exceeds ? ' — this is above it' : ' — this is below it'}. Lead is almost never in the source water; it is picked up from service lines, solder and household plumbing on the way to the tap.
+        ${nearMiss ? `<span class="note"><strong>Worth noting:</strong> under EPA's Lead and Copper Rule Improvements the action level drops to 10 ppb, with a compliance date of 1 November 2027. This result passes the level in force when it was reported, and would not pass the one that replaces it.</span>` : ''}
+        ${stale ? `<span class="note"><strong>Age:</strong> this is the most recent lead result on file for this town, and its monitoring period ended about ${yrs} year${yrs === 1 ? '' : 's'} ago. Systems in compliance sample lead infrequently — every three years is common — so a gap of several years is normal rather than a sign of neglect. It does mean nobody has published a newer number.</span>` : ''}</div>
       </div>`;
     }
     h += `</div>`;
