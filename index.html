@@ -188,7 +188,9 @@ header .hbtn:active{transform:translate(2px,2px);box-shadow:none}
 .blk h3{font-size:12px;letter-spacing:.15em;margin-bottom:11px;opacity:.65}
 .meas{border:2px solid var(--ink);padding:12px;margin-bottom:10px;box-shadow:4px 4px 0 0 var(--ink)}
 .meas.over{background:var(--red);color:#fff}
+.meas.watch{background:var(--yellow)}
 .meas.under{background:var(--paper)}
+.meas .note{display:block;margin-top:8px;padding-top:8px;border-top:2px solid var(--ink);font-size:11.5px;line-height:1.45}
 .meas .top{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
 .meas .top b{font-weight:900;text-transform:uppercase;font-size:14px;letter-spacing:-.01em}
 .meas .top span{font-weight:900;font-size:17px;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -297,7 +299,7 @@ header .hbtn:active{transform:translate(2px,2px);box-shadow:none}
         <label class="chk on"><input type="checkbox" id="fRep" checked> Repeated</label>
         <label class="chk on"><input type="checkbox" id="fSome" checked> Some</label>
         <label class="chk on"><input type="checkbox" id="fMin" checked> Minor</label>
-        <label class="chk"><input type="checkbox" id="fNone"> No violations</label>
+        <label class="chk on"><input type="checkbox" id="fNone" checked> No violations</label>
         <label class="chk"><input type="checkbox" id="fPop"> 1,000+ people</label>
       </div>
     </div>
@@ -603,9 +605,13 @@ function renderDetail(t) {
       </div>`;
     }
     if (lead) {
-      h += `<div class="meas ${lead.exceeds ? 'over' : 'under'}">
+      // 10–15 ppb passes today's action level but not the one that replaces it in Nov 2027
+      const nearMiss = !lead.exceeds && lead.ppb >= 10;
+      const cls = lead.exceeds ? 'over' : (nearMiss ? 'watch' : 'under');
+      h += `<div class="meas ${cls}">
         <div class="top"><b>Lead</b><span>${lead.ppb} ppb</span></div>
-        <div class="sub">90th-percentile tap result for ${esc(title(lead.pws_name))}, sampled ${esc(lead.date)}. The federal action level is 15 ppb${lead.exceeds ? ' — this is above it' : ' — this is below it'}. Lead is almost never in the source water; it is picked up from service lines, solder and household plumbing on the way to the tap.</div>
+        <div class="sub">90th-percentile tap result for ${esc(title(lead.pws_name))}, sampled ${esc(lead.date)}. The federal action level is 15 ppb${lead.exceeds ? ' — this is above it' : ' — this is below it'}. Lead is almost never in the source water; it is picked up from service lines, solder and household plumbing on the way to the tap.
+        ${nearMiss ? `<span class="note"><strong>Worth noting:</strong> under EPA's Lead and Copper Rule Improvements the action level drops to 10 ppb, with a compliance date of 1 November 2027. This result passes the level in force when it was sampled, and would not pass the one that replaces it.</span>` : ''}</div>
       </div>`;
     }
     h += `</div>`;
