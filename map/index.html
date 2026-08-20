@@ -12,6 +12,10 @@
 <style>
 :root{
   --bg:#FFFFFF; --fg:#000000; --muted:#F5F5F5; --muted-fg:#525252; --line:#E5E5E5;
+  /* Tier colours. The page chrome stays monochrome; colour is reserved for the
+     data itself, where it does real work across 1,151 points. Shape carries the
+     same information, so nothing depends on colour alone. */
+  --t3:#D02020; --t2:#F0C020; --t1:#1040C0; --t0:#FFFFFF;
   --display:"Playfair Display",Georgia,serif;
   --body:"Source Serif 4",Georgia,serif;
   --mono:"JetBrains Mono",ui-monospace,monospace;
@@ -52,10 +56,10 @@ header button:hover{background:var(--fg);color:var(--bg)}
 /* markers — severity by shape and fill, never by colour alone */
 .pin{background:none;border:0}
 .pin b{display:block;width:100%;height:100%;border:2px solid var(--fg);background:var(--bg)}
-.pin.t3 b{background:var(--fg);transform:rotate(45deg)}
-.pin.t2 b{background:var(--fg)}
-.pin.t1 b{background:var(--bg)}
-.pin.t0 b{background:var(--bg);border-radius:50%;border-width:1px}
+.pin.t3 b{background:var(--t3);transform:rotate(45deg)}      /* diamond, red    */
+.pin.t2 b{background:var(--t2)}                              /* square, yellow  */
+.pin.t1 b{background:var(--t1);border:0;clip-path:polygon(50% 0,0 100%,100% 100%)}  /* triangle, blue */
+.pin.t0 b{background:var(--t0);border-radius:50%;border-width:1px}                  /* circle, white  */
 .pin.sel b{outline:3px solid var(--fg);outline-offset:3px}
 
 /* panel */
@@ -94,9 +98,10 @@ header button:hover{background:var(--fg);color:var(--bg)}
 .leg{display:grid;gap:11px}
 .leg .row{display:flex;gap:12px;align-items:flex-start;font-size:14px;line-height:1.4}
 .leg .g{flex:none;width:16px;height:16px;border:2px solid var(--fg);margin-top:2px;background:var(--bg)}
-.leg .g.t3{background:var(--fg);transform:rotate(45deg);width:13px;height:13px;margin:3px 2px 0}
-.leg .g.t2{background:var(--fg)}
-.leg .g.t0{border-radius:50%;border-width:1px}
+.leg .g.t3{background:var(--t3);transform:rotate(45deg);width:13px;height:13px;margin:3px 2px 0}
+.leg .g.t2{background:var(--t2)}
+.leg .g.t1{background:var(--t1);border:0;clip-path:polygon(50% 0,0 100%,100% 100%)}
+.leg .g.t0{background:var(--t0);border-radius:50%;border-width:1px}
 .leg b{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase}
 
 .filt{display:flex;flex-wrap:wrap;gap:7px}
@@ -109,10 +114,13 @@ header button:hover{background:var(--fg);color:var(--bg)}
 .item{display:flex;gap:13px;align-items:center;width:100%;text-align:left;background:var(--bg);
   border:0;border-bottom:1px solid var(--line);padding:13px 0;transition:none}
 .item:hover{background:var(--fg);color:var(--bg)}
-.item .g{flex:none;width:14px;height:14px;border:2px solid currentColor;background:transparent}
-.item .g.t3{background:currentColor;transform:rotate(45deg);width:12px;height:12px}
-.item .g.t2{background:currentColor}
-.item .g.t0{border-radius:50%;border-width:1px}
+.item .g{flex:none;width:14px;height:14px;border:2px solid var(--fg);background:var(--bg)}
+.item .g.t3{background:var(--t3);transform:rotate(45deg);width:12px;height:12px}
+.item .g.t2{background:var(--t2)}
+.item .g.t1{background:var(--t1);border:0;clip-path:polygon(50% 0,0 100%,100% 100%)}
+.item .g.t0{background:var(--t0);border-radius:50%;border-width:1px}
+/* the row inverts on hover; keep the glyph outline visible against black */
+.item:hover .g{border-color:var(--bg)}
 .item .nm{flex:1;min-width:0;overflow:hidden}
 .item .nm b{display:block;font-family:var(--display);font-size:16px;font-weight:700;letter-spacing:-.02em;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -141,6 +149,11 @@ header button:hover{background:var(--fg);color:var(--bg)}
 .dhead h2{font-size:clamp(30px,8vw,46px);margin:7px 0 12px;padding-right:52px;letter-spacing:-.04em}
 .dhead .band{display:inline-flex;align-items:center;gap:9px;border:1px solid var(--fg);padding:6px 11px;
   font-family:var(--mono);font-size:9.5px;letter-spacing:.11em;text-transform:uppercase}
+.bandglyph{display:inline-block;width:12px;height:12px;border:2px solid var(--fg);background:var(--bg);flex:none}
+.bandglyph.t3{background:var(--t3);transform:rotate(45deg);width:10px;height:10px}
+.bandglyph.t2{background:var(--t2)}
+.bandglyph.t1{background:var(--t1);border:0;clip-path:polygon(50% 0,0 100%,100% 100%)}
+.bandglyph.t0{background:var(--t0);border-radius:50%;border-width:1px}
 .dclose{position:absolute;top:16px;right:16px;width:38px;height:38px;border:1px solid var(--fg);
   background:var(--bg);font-size:19px;line-height:1;transition:none}
 .dclose:hover{background:var(--fg);color:var(--bg)}
@@ -491,7 +504,7 @@ async function openDetail(t){
   const tier = TIER[t.risk_tier];
   $('dState').textContent = `${t.state} · ${num(t.pws_count)} water system${t.pws_count===1?'':'s'} · ${num(t.pop_served_total)} people`;
   $('dTitle').textContent = title(t.city);
-  $('dBand').innerHTML = `<span class="g ${tier.k}" style="width:12px;height:12px;border:2px solid var(--fg);display:inline-block;${tier.k==='t3'?'background:var(--fg);transform:rotate(45deg);':''}${tier.k==='t2'?'background:var(--fg);':''}${tier.k==='t0'?'border-radius:50%;border-width:1px;':''}"></span> ${tier.label}`;
+  $('dBand').innerHTML = `<span class="bandglyph ${tier.k}"></span> ${tier.label}`;
   $('dBody').innerHTML = `<div class="loading">Loading the record…</div>`;
   $('detail').classList.add('open');
   $('dClose').focus();
